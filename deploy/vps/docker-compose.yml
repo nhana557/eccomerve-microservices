@@ -1,0 +1,266 @@
+services:
+  # ==========================================
+  # 1. DATABASE & MESSAGE BROKER (No Watchtower)
+  # ==========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecommerce-postgres
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # One-shot database initializer (No local SQL files required on VPS)
+  init-db:
+    image: postgres:16-alpine
+    container_name: ecommerce-init-db
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "Initializing microservice databases if not exist..."
+        for db in auth_db product_db order_db payment_db; do
+          psql -h postgres -U ${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = '$$db'" | grep -q 1 || \
+          psql -h postgres -U ${POSTGRES_USER:-postgres} -c "CREATE DATABASE $$db;"
+        done
+        echo "Database initialization complete."
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ecommerce-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management Web UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.15.0
+    container_name: ecommerce-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cat/health | grep -q 'green\\|yellow'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # 2. APPLICATION MICROSERVICES (From GHCR, Monitored by Watchtower)
+  # ==========================================
+  auth-service:
+    image: ghcr.io/${GHCR_OWNER:-nhana557}/ecommerce-auth-service:latest
+    container_name: ecommerce-auth-service
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgrespassword}
+      - DB_NAME=auth_db
+      - DB_SSLMODE=disable
+      - JWT_SECRET=${JWT_SECRET:-super-secret-key-tokopedia-dark-edition-2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+
+  product-service:
+    image: ghcr.io/${GHCR_OWNER:-nhana557}/ecommerce-product-service:latest
+    container_name: ecommerce-product-service
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgrespassword}
+      - DB_NAME=product_db
+      - DB_SSLMODE=disable
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  order-service:
+    image: ghcr.io/${GHCR_OWNER:-nhana557}/ecommerce-order-service:latest
+    container_name: ecommerce-order-service
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8083:8083"
+    environment:
+      - PORT=8083
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgrespassword}
+      - DB_NAME=order_db
+      - DB_SSLMODE=disable
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  payment-service:
+    image: ghcr.io/${GHCR_OWNER:-nhana557}/ecommerce-payment-service:latest
+    container_name: ecommerce-payment-service
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgrespassword}
+      - DB_NAME=payment_db
+      - DB_SSLMODE=disable
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  api-gateway:
+    image: ghcr.io/${GHCR_OWNER:-nhana557}/ecommerce-api-gateway:latest
+    container_name: ecommerce-api-gateway
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - ORDER_SERVICE_URL=http://order-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - JWT_SECRET=${JWT_SECRET:-super-secret-key-tokopedia-dark-edition-2026}
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+      - payment-service
+
+  web:
+    image: ghcr.io/${GHCR_OWNER:-nhana557}/ecommerce-web:latest
+    container_name: ecommerce-web
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - INTERNAL_GATEWAY_URL=http://api-gateway:8080
+      - NEXT_PUBLIC_GATEWAY_URL=${PUBLIC_GATEWAY_URL:-http://localhost:8080}
+    depends_on:
+      - api-gateway
+
+  # ==========================================
+  # 3. WATCHTOWER AUTOMATED DEPLOYMENT
+  # (Pulls from GHCR and auto-restarts app containers on new commits)
+  # ==========================================
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: ecommerce-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_CONFIG_PATH:-/root/.docker/config.json}:/config.json:ro
+    environment:
+      - WATCHTOWER_CLEANUP=true              # Auto-remove old images to save VPS disk space
+      - WATCHTOWER_POLL_INTERVAL=60          # Check GHCR every 60 seconds
+      - WATCHTOWER_LABEL_ENABLE=true         # ONLY update containers with enable=true label
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - WATCHTOWER_TIMEOUT=30s
+    command:
+      - ecommerce-web
+      - ecommerce-api-gateway
+      - ecommerce-auth-service
+      - ecommerce-product-service
+      - ecommerce-order-service
+      - ecommerce-payment-service
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  elasticsearch_data:

@@ -1,0 +1,513 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - production
+    paths:
+      - 'apps/web/**'
+      - 'services/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'go.work'
+      - 'go.work.sum'
+  pull_request:
+    branches:
+      - main
+      - production
+    paths:
+      - 'apps/web/**'
+      - 'services/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'go.work'
+      - 'go.work.sum'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Pilih service spesifik untuk build/test (atau "all")'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - web
+          - api-gateway
+          - auth-service
+          - product-service
+          - order-service
+          - payment-service
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # =========================================================================
+  # 1. PATH FILTERING: Deteksi service yang mengalami perubahan kode
+  # =========================================================================
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      auth: ${{ steps.filter.outputs.auth }}
+      product: ${{ steps.filter.outputs.product }}
+      order: ${{ steps.filter.outputs.order }}
+      payment: ${{ steps.filter.outputs.payment }}
+      go_any: ${{ steps.filter.outputs.gateway == 'true' || steps.filter.outputs.auth == 'true' || steps.filter.outputs.product == 'true' || steps.filter.outputs.payment == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'package.json'
+              - 'bun.lock'
+            gateway:
+              - 'services/api-gateway/**'
+              - 'packages/**'
+              - 'go.work'
+              - 'go.work.sum'
+            auth:
+              - 'services/auth-service/**'
+              - 'packages/**'
+              - 'go.work'
+              - 'go.work.sum'
+            product:
+              - 'services/product-service/**'
+              - 'packages/**'
+              - 'go.work'
+              - 'go.work.sum'
+            order:
+              - 'services/order-service/**'
+            payment:
+              - 'services/payment-service/**'
+              - 'packages/**'
+              - 'go.work'
+              - 'go.work.sum'
+
+  # =========================================================================
+  # 2. CI QUALITY GATE: Automated Unit Tests, Lint, Typecheck, & E2E Tests
+  # =========================================================================
+
+  # CI: Frontend Unit Tests & Build Verification
+  test-web:
+    name: "CI: Web (Unit Test & Build)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'web') ||
+      needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run Web Unit Tests (Bun)
+        run: bun run --cwd apps/web test
+
+      - name: Verify Web Production Build
+        run: bun run --cwd apps/web build
+
+  # CI: End-to-End Testing dengan tester-army/e2e & Playwright Web Engine
+  test-e2e:
+    name: "CI: Web E2E (tester-army/e2e)"
+    needs: [detect-changes, test-web]
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'web') ||
+      needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install Chromium browser for @e2e-dev/web
+        run: cd apps/web && bunx @e2e-dev/web install chromium --with-deps
+
+      - name: Run E2E Test Suite
+        run: cd apps/web && bun run test:e2e --reporter list,junit
+        env:
+          APP_URL: http://localhost:3000
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+
+      - name: Upload E2E Reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            apps/web/.e2e/report.json
+            apps/web/.e2e/junit.xml
+            apps/web/.e2e/results
+          if-no-files-found: warn
+          retention-days: 7
+
+  # CI: Go Microservices Unit Tests & Vet
+  test-go-services:
+    name: "CI: Go Services (Vet & Unit Tests)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'api-gateway' || inputs.service == 'auth-service' || inputs.service == 'product-service' || inputs.service == 'payment-service') ||
+      needs.detect-changes.outputs.go_any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.24
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Run Go Vet & Unit Tests
+        run: |
+          go vet ./packages/shared-go/...
+          go test -v ./packages/shared-go/... ./services/api-gateway/... ./services/auth-service/... ./services/product-service/... ./services/payment-service/...
+
+  # CI: NestJS Order Service Unit Tests & Build Check
+  test-order-service:
+    name: "CI: Order Service (Unit Test & Build)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'order-service') ||
+      needs.detect-changes.outputs.order == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: cd services/order-service && bun install
+
+      - name: Run Order Service Unit Tests
+        run: cd services/order-service && bun test
+
+      - name: Verify Order Service Build
+        run: cd services/order-service && bun run build
+
+  # =========================================================================
+  # 3. CD DEPLOYMENT GATE: Build & Push Docker Images ke GHCR
+  # (HANYA dieksekusi saat Push ke branch utama / merge PR, BUKAN saat PR terbuka)
+  # =========================================================================
+
+  # Build & Push Next.js Web App
+  build-web:
+    name: "CD: Build & Push Web"
+    needs: [detect-changes, test-web, test-e2e]
+    if: |
+      github.event_name != 'pull_request' && (
+        github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'web') ||
+        needs.detect-changes.outputs.web == 'true'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase repository owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata for Web
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/ecommerce-web
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Web Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Build & Push Go API Gateway
+  build-gateway:
+    name: "CD: Build & Push API Gateway"
+    needs: [detect-changes, test-go-services]
+    if: |
+      github.event_name != 'pull_request' && (
+        github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'api-gateway') ||
+        needs.detect-changes.outputs.gateway == 'true'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase repository owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata for API Gateway
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/ecommerce-api-gateway
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push API Gateway Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/api-gateway/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Build & Push Go Auth Service
+  build-auth-service:
+    name: "CD: Build & Push Auth Service"
+    needs: [detect-changes, test-go-services]
+    if: |
+      github.event_name != 'pull_request' && (
+        github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'auth-service') ||
+        needs.detect-changes.outputs.auth == 'true'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase repository owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata for Auth Service
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/ecommerce-auth-service
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Auth Service Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/auth-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Build & Push Go Product Service
+  build-product-service:
+    name: "CD: Build & Push Product Service"
+    needs: [detect-changes, test-go-services]
+    if: |
+      github.event_name != 'pull_request' && (
+        github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'product-service') ||
+        needs.detect-changes.outputs.product == 'true'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase repository owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata for Product Service
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/ecommerce-product-service
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Product Service Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/product-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Build & Push NestJS Order Service
+  build-order-service:
+    name: "CD: Build & Push Order Service"
+    needs: [detect-changes, test-order-service]
+    if: |
+      github.event_name != 'pull_request' && (
+        github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'order-service') ||
+        needs.detect-changes.outputs.order == 'true'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase repository owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata for Order Service
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/ecommerce-order-service
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Order Service Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/order-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Build & Push Go Payment Service
+  build-payment-service:
+    name: "CD: Build & Push Payment Service"
+    needs: [detect-changes, test-go-services]
+    if: |
+      github.event_name != 'pull_request' && (
+        github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'payment-service') ||
+        needs.detect-changes.outputs.payment == 'true'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase repository owner
+        id: repo_owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata for Payment Service
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo_owner.outputs.owner }}/ecommerce-payment-service
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Payment Service Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/payment-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
