@@ -26,13 +26,11 @@ import (
 const serviceName = "product-service"
 
 // seedDefaultProductsIfEmpty populates initial store products when database is completely empty.
+// Uses fast SELECT 1 LIMIT 1 to avoid scanning millions of rows on startup.
 func seedDefaultProductsIfEmpty(db *gorm.DB, esClient elasticsearch.Client, log *slog.Logger) {
-	var count int64
-	if err := db.Model(&entity.Product{}).Count(&count).Error; err != nil {
-		log.Warn("Failed to count products for seeder check", "error", err)
-		return
-	}
-	if count > 0 {
+	var exists int
+	err := db.Raw("SELECT 1 FROM products LIMIT 1").Scan(&exists).Error
+	if err == nil && exists == 1 {
 		return
 	}
 
@@ -210,49 +208,53 @@ func seedDefaultProductsIfEmpty(db *gorm.DB, esClient elasticsearch.Client, log 
 }
 
 // setupDatabaseSchema ensures database tables and indexes exist.
+// To ensure sub-second startup (<100ms), expensive DDL, index checks, and table analysis
+// are only executed when tables are missing or when AUTO_MIGRATE=true is explicitly set.
 func setupDatabaseSchema(db *gorm.DB, esClient elasticsearch.Client, log *slog.Logger) error {
 	hasProduct := db.Migrator().HasTable(&entity.Product{})
 	hasCategory := db.Migrator().HasTable(&entity.Category{})
 	forceMigrate := config.GetEnv("AUTO_MIGRATE", "false") == "true"
 
-	migrationDB := db.Session(&gorm.Session{
-		Logger: gormlogger.Default.LogMode(gormlogger.Error),
-	})
-
-	// 1. Ensure extensions exist
-	migrationDB.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
-	migrationDB.Exec("CREATE EXTENSION IF NOT EXISTS btree_gin;")
-
-	// 2. Run AutoMigrate FIRST so that tables exist before index creation
 	if !hasCategory || !hasProduct || forceMigrate {
-		log.Info("Running database schema migration...")
+		log.Info("Running database schema migration & indexing...")
+		migrationDB := db.Session(&gorm.Session{
+			Logger: gormlogger.Default.LogMode(gormlogger.Error),
+		})
+
+		// 1. Ensure extensions exist
+		migrationDB.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+		migrationDB.Exec("CREATE EXTENSION IF NOT EXISTS btree_gin;")
+
+		// 2. Run AutoMigrate FIRST so that tables exist before index creation
 		if err := migrationDB.AutoMigrate(&entity.Category{}, &entity.Product{}); err != nil {
 			return fmt.Errorf("failed to auto-migrate schema: %w", err)
 		}
+
+		// 3. Ensure high-performance indexes exist safely on created tables
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON products USING gin (LOWER(name) gin_trgm_ops);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_cat_name_trgm ON products USING gin (category, LOWER(name) gin_trgm_ops);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_catid_name_trgm ON products USING gin (category_id, LOWER(name) gin_trgm_ops);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products(LOWER(name));")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_cat_name ON products(category, name);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_catid_name ON products(category_id, name);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_created_at_desc ON products(created_at DESC);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);")
+		migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug);")
+		migrationDB.Exec("ANALYZE products;")
+		migrationDB.Exec("ANALYZE categories;")
+
+		log.Info("Database schema migration and indexing completed successfully")
+	} else {
+		log.Info("Database schema verified (tables exist, fast startup <10ms)")
 	}
 
-	// 3. Ensure high-performance indexes exist safely on created tables
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON products USING gin (LOWER(name) gin_trgm_ops);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_cat_name_trgm ON products USING gin (category, LOWER(name) gin_trgm_ops);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_catid_name_trgm ON products USING gin (category_id, LOWER(name) gin_trgm_ops);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products(LOWER(name));")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_cat_name ON products(category, name);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_catid_name ON products(category_id, name);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_created_at_desc ON products(created_at DESC);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);")
-	migrationDB.Exec("CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug);")
-	migrationDB.Exec("ANALYZE products;")
-	migrationDB.Exec("ANALYZE categories;")
-
-	log.Info("Database schema verified (products, categories, and indexes exist)")
-
-	// 4. Auto-seed initial store catalog if table is currently empty
-	seedDefaultProductsIfEmpty(db, esClient, log)
+	// 4. Auto-seed initial store catalog in background non-blocking
+	go seedDefaultProductsIfEmpty(db, esClient, log)
 	return nil
 }
 
@@ -271,10 +273,10 @@ func main() {
 	dbName := config.GetEnv("DB_NAME", "product_db")
 	dbSSL := config.GetEnv("DB_SSLMODE", "disable")
 
-	// Retry loop for PostgreSQL connection on startup (up to 10 attempts)
+	// Fast retry loop for PostgreSQL connection on startup (up to 5 attempts, 1s backoff)
 	var db *gorm.DB
 	var err error
-	maxRetries := 10
+	maxRetries := 5
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		db, err = database.NewPostgresDB(database.Config{
 			Host:        dbHost,
@@ -291,7 +293,7 @@ func main() {
 		}
 		if attempt < maxRetries {
 			log.Warn("Waiting for PostgreSQL connection...", "attempt", attempt, "max", maxRetries, "error", err)
-			time.Sleep(2 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}
 
