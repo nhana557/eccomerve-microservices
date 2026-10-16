@@ -398,23 +398,33 @@ export function ProductManagementTable({
           </p>
         </div>
         <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
-          {/* Response Time API Badge (Menggantikan mode badge langsung) */}
+          {/* Response Time API Badge (Langsung menampilkan state loading di dalam card tanpa tombol/badge terpisah) */}
           <div
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl font-mono text-xs font-semibold border shadow-sm transition-all ${
-              responseTime !== undefined && responseTime !== null
+              isLoading
+                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-300"
+                : responseTime !== undefined && responseTime !== null
                 ? getResponseTimeBadgeClass(responseTime)
                 : "bg-slate-900 border-slate-800 text-slate-400"
             }`}
             title={
-              isFromCache
+              isLoading
+                ? "Sedang mengukur response time dan mengambil data dari backend..."
+                : isFromCache
                 ? `Mengambil data dari Cache ${cacheTier || "T4"}`
                 : "Direct live query langsung ke database PostgreSQL (Bypass Cache)"
             }
           >
-            <Zap className="w-3.5 h-3.5 text-current" />
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+            ) : (
+              <Zap className="w-3.5 h-3.5 text-current" />
+            )}
             <span className="text-slate-400 font-normal">Response Time API:</span>
-            <span className="font-bold">
-              {responseTime !== undefined && responseTime !== null
+            <span className={`font-bold ${isLoading ? "text-cyan-300 animate-pulse" : ""}`}>
+              {isLoading
+                ? "Memuat..."
+                : responseTime !== undefined && responseTime !== null
                 ? formatResponseTime(responseTime)
                 : "Mengukur..."}
             </span>
@@ -441,14 +451,6 @@ export function ProductManagementTable({
             >
               <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
               <span>{formatDataSizeMB(responseSize)}</span>
-            </div>
-          )}
-
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-xs font-mono shadow-sm">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-              <span>Memuat...</span>
             </div>
           )}
 
