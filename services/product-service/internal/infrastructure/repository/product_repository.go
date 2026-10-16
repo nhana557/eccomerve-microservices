@@ -196,8 +196,9 @@ func (r *gormProductRepository) ListWithFilter(ctx context.Context, filter Produ
 	if method == "postgres_filter" {
 		// To accurately reflect the baseline benchmark (Sequential Full Table Scan without index optimization),
 		// force PostgreSQL to bypass B-Tree and Bitmap Index scans within this isolated transaction scope.
+		// statement_timeout dinaikkan menjadi 65 detik (1 menit+) agar raw full table scan tidak terputus di tengah jalan.
 		tx = dbSession.Begin()
-		_ = tx.Exec("SET LOCAL enable_indexscan = off; SET LOCAL enable_bitmapscan = off;").Error
+		_ = tx.Exec("SET LOCAL statement_timeout = '65s'; SET LOCAL enable_indexscan = off; SET LOCAL enable_bitmapscan = off;").Error
 		dbSession = tx
 		defer func() {
 			if tx != nil {

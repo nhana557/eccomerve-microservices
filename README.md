@@ -19,6 +19,7 @@ Platform e-commerce modern berskala enterprise berbasis arsitektur **Microservic
 - [Infrastruktur & Observability Stack](#infrastruktur--observability-stack)
 - [Daftar Alokasi Port](#daftar-alokasi-port)
 - [Panduan Menjalankan Project](#panduan-menjalankan-project)
+- [Branching Strategy & CI/CD (Trunk-Based Development)](docs/trunk-based-development.md)
 
 ---
 
@@ -419,3 +420,11 @@ Untuk memasukkan data katalog kategori & produk ke PostgreSQL (`product_db`) dan
 - **Jaeger Distributed Tracing:** [http://localhost:16686](http://localhost:16686)
 - **Prometheus Targets:** [http://localhost:9090/targets](http://localhost:9090/targets)
 - **RabbitMQ Dashboard:** [http://localhost:15672](http://localhost:15672) (User: `guest` / `guest`)
+
+---
+
+## Branching Strategy & Otomatisasi CI/CD
+
+Repositori ini menerapkan strategi percabangan **Trunk-Based Development (TBD)** dengan branch **`production`** sebagai cabang utama (*single trunk*). Setiap perubahan fitur dibuat melalui cabang berumur pendek (*short-lived branch*), divalidasi oleh **Selective Path Filtering CI**, dan dideploy secara otomatis ke VPS menggunakan **Watchtower** dan **GitHub Container Registry (GHCR)**.
+
+📘 **Dokumentasi Lengkap:** [Panduan Trunk-Based Development & CI/CD Deployment](docs/trunk-based-development.md)

@@ -201,10 +201,17 @@ export async function apiRequestWithMeta<T>(
       reqHeaders["Authorization"] = `Bearer ${token}`;
     }
 
+    const isRawFilterQuery =
+      endpoint.includes("postgres_filter") ||
+      endpoint.includes("raw") ||
+      endpoint.includes("/direct") ||
+      (options?.headers && (options.headers as any)["X-No-Cache"] === "true");
+    const timeoutMs = isRawFilterQuery ? 65000 : 60000;
+
     const abortSignal =
       options?.signal ||
       (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-        ? AbortSignal.timeout(45000)
+        ? AbortSignal.timeout(timeoutMs)
         : undefined);
 
     const res = await fetch(url, {

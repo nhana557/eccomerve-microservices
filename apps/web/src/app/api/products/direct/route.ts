@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     const upstreamRes = await fetch(upstreamUrl, {
       cache: "no-store",
       headers: upstreamHeaders,
+      signal: AbortSignal.timeout(65000), // 1 menit timeout untuk direct raw filter
     });
 
     const elapsed = Math.round(performance.now() - startTime);

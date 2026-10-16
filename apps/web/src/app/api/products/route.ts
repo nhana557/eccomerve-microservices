@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const fetchOptions: RequestInit = (isSearch || isDirect)
       ? {
           cache: "no-store",
+          signal: AbortSignal.timeout(65000), // 1 menit timeout untuk uncached query
           headers: {
             Accept: "application/json",
             "X-App-Client": "tstore-nextjs-web-cqrs",
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
             revalidate: 300, // Tier 1: 5 menit (300 detik) ISR Next.js Data Cache
             tags: ["products"],
           },
+          signal: AbortSignal.timeout(65000),
           headers: {
             Accept: "application/json",
             "X-App-Client": "tstore-nextjs-web",

@@ -14,7 +14,7 @@ build/
 dist/
 
 .superpowers
-docs
+docs/superpowers/
 scripts
 
 # Turbo cache
