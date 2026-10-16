@@ -2,7 +2,26 @@ import type { ApiResponse } from "@/types/api";
 import { generateTraceParent, parseTraceParent, exportTraceSpan } from "./telemetry";
 import { frontendLogger } from "./logger";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:8080";
+export function getGatewayUrl(): string {
+  if (typeof window !== "undefined") {
+    const envUrl = process.env.NEXT_PUBLIC_GATEWAY_URL;
+    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+      return envUrl;
+    }
+    const hostname = window.location.hostname;
+    if (hostname.includes("taryana.my.id")) {
+      return `${window.location.protocol}//gateway.taryana.my.id`;
+    }
+    if (envUrl) {
+      return envUrl;
+    }
+  }
+  return (
+    process.env.INTERNAL_GATEWAY_URL ||
+    process.env.NEXT_PUBLIC_GATEWAY_URL ||
+    "http://localhost:8080"
+  );
+}
 
 let authTokenGetter: (() => Promise<string | null>) | null = null;
 
@@ -154,19 +173,20 @@ export async function apiRequestWithMeta<T>(
   const parsedTrace = parseTraceParent(traceparent);
   const queryStr = endpoint.includes("?") ? endpoint.split("?")[1] : undefined;
   if (!endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
+    const gateway = getGatewayUrl();
     if (endpoint.startsWith("/api/products") && typeof window !== "undefined") {
       // In browser, route to Next.js local Route Handler (/api/products or /api/products/direct)
       url = endpoint;
     } else if (endpoint.startsWith("/api/products/direct")) {
       // Server/Node runtime direct fallback
       const qs = endpoint.includes("?") ? endpoint.split("?")[1] : "";
-      url = `${GATEWAY_URL}/api/v1/products/direct${qs ? `?${qs}` : ""}`;
+      url = `${gateway}/api/v1/products/direct${qs ? `?${qs}` : ""}`;
     } else if (endpoint.startsWith("/api/products")) {
       // Server/Node runtime fallback
       const qs = endpoint.includes("?") ? endpoint.split("?")[1] : "";
-      url = `${GATEWAY_URL}/api/v1/products${qs ? `?${qs}` : ""}`;
+      url = `${gateway}/api/v1/products${qs ? `?${qs}` : ""}`;
     } else {
-      url = `${GATEWAY_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+      url = `${gateway}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
     }
   }
 

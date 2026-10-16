@@ -13,7 +13,7 @@ import { PromoSeeder } from './seeds/promo.seeder';
       useFactory: () => ({
         type: 'postgres',
         host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '6433', 10),
+        port: parseInt(process.env.DB_PORT || '5432', 10),
         username: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'postgrespassword',
         database: process.env.DB_NAME || 'order_db',
@@ -24,7 +24,7 @@ import { PromoSeeder } from './seeds/promo.seeder';
           CartItemEntity,
           PromoEntity,
         ],
-        synchronize: false,
+        synchronize: true,
         ssl: process.env.DB_SSLMODE === 'require' ? true : false,
         extra: {
           max: 20,
