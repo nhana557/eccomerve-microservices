@@ -256,7 +256,8 @@ func (r *gormProductRepository) ListWithFilter(ctx context.Context, filter Produ
 		if err == nil && estTotal > 0 {
 			total = estTotal
 		} else {
-			if err := query.Count(&total).Error; err != nil {
+			countSession := query.Session(&gorm.Session{})
+			if err := countSession.Count(&total).Error; err != nil {
 				return nil, 0, err
 			}
 		}
@@ -270,7 +271,8 @@ func (r *gormProductRepository) ListWithFilter(ctx context.Context, filter Produ
 		if found && cachedCount > 0 {
 			total = cachedCount
 		} else {
-			if err := query.Count(&total).Error; err != nil {
+			countSession := query.Session(&gorm.Session{})
+			if err := countSession.Count(&total).Error; err != nil {
 				return nil, 0, err
 			}
 			categoryCountLock.Lock()
@@ -278,7 +280,8 @@ func (r *gormProductRepository) ListWithFilter(ctx context.Context, filter Produ
 			categoryCountLock.Unlock()
 		}
 	} else {
-		if err := query.Count(&total).Error; err != nil {
+		countSession := query.Session(&gorm.Session{})
+		if err := countSession.Count(&total).Error; err != nil {
 			return nil, 0, err
 		}
 	}
