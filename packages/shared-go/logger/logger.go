@@ -124,6 +124,10 @@ func (p *lokiPusher) worker() {
 
 		resp, err := p.client.Do(req)
 		if err == nil {
+			if resp.StatusCode >= 400 {
+				body, _ := io.ReadAll(resp.Body)
+				fmt.Fprintf(os.Stderr, "[Loki Pusher Warning] status %d: %s\n", resp.StatusCode, string(body))
+			}
 			_ = resp.Body.Close()
 		}
 	}
