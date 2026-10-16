@@ -11,6 +11,7 @@ func HealthHandler(serviceName string) http.HandlerFunc {
 		status := map[string]string{
 			"status":  "healthy",
 			"service": serviceName,
+			"version": "1.0.0",
 		}
 		response.JSON(w, http.StatusOK, status, serviceName)
 	}
