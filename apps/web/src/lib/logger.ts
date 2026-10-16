@@ -80,6 +80,14 @@ class FrontendLogger {
     }
   }
 
+  public clear() {
+    this.queue = [];
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+  }
+
   public info(msg: string, meta?: Record<string, any>) {
     this.log("INFO", msg, meta);
   }

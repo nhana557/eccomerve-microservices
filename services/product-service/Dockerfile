@@ -1,18 +1,18 @@
 # Stage 1: Build binary
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copy workspace and go module manifests
-COPY go.work go.work.sum ./
+# Copy go module manifests
 COPY packages/shared-go/go.mod packages/shared-go/go.sum* ./packages/shared-go/
 COPY packages/proto/go.mod packages/proto/go.sum* ./packages/proto/
 COPY services/product-service/go.mod services/product-service/go.sum* ./services/product-service/
 
-# Download dependencies
-RUN go mod download -x 2>/dev/null || true
+# Init isolated workspace for this service and download dependencies
+RUN go work init ./packages/shared-go ./packages/proto ./services/product-service && \
+    (cd services/product-service && go mod download)
 
 # Copy source code
 COPY packages/shared-go ./packages/shared-go

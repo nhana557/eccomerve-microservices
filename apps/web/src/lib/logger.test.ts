@@ -15,6 +15,8 @@ describe("Frontend Logger Client", () => {
     }) as any;
 
     try {
+      frontendLogger.clear();
+
       frontendLogger.info("Test page viewed", {
         trace_id: "4bf92f3577b34da6a3ce929d0e0e4736",
         span_id: "00f067aa0ba902b7",
@@ -25,15 +27,18 @@ describe("Frontend Logger Client", () => {
       await frontendLogger.flush();
 
       expect(sentLogs.length).toBeGreaterThan(0);
-      expect(sentLogs[0].msg).toBe("Test page viewed");
-      expect(sentLogs[0].level).toBe("INFO");
-      expect(sentLogs[0].service_name).toBe("web-frontend");
-      expect(sentLogs[0].method).toBe("GET");
-      expect(sentLogs[0].fullUrl).toBe("/checkout");
-      expect(sentLogs[0].span_id).toBe("00f067aa0ba902b7");
-      expect(sentLogs[0].trace_id).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
-      expect(sentLogs[0].time).toBeDefined();
+      const testLog = sentLogs.find((l) => l.msg === "Test page viewed");
+      expect(testLog).toBeDefined();
+      expect(testLog!.msg).toBe("Test page viewed");
+      expect(testLog!.level).toBe("INFO");
+      expect(testLog!.service_name).toBe("web-frontend");
+      expect(testLog!.method).toBe("GET");
+      expect(testLog!.fullUrl).toBe("/checkout");
+      expect(testLog!.span_id).toBe("00f067aa0ba902b7");
+      expect(testLog!.trace_id).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
+      expect(testLog!.time).toBeDefined();
     } finally {
+      frontendLogger.clear();
       globalThis.fetch = originalFetch;
     }
   });
