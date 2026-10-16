@@ -62,7 +62,6 @@ jobs:
       product: ${{ steps.filter.outputs.product }}
       order: ${{ steps.filter.outputs.order }}
       payment: ${{ steps.filter.outputs.payment }}
-      go_any: ${{ steps.filter.outputs.gateway == 'true' || steps.filter.outputs.auth == 'true' || steps.filter.outputs.product == 'true' || steps.filter.outputs.payment == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -100,7 +99,7 @@ jobs:
               - 'go.work.sum'
 
   # =========================================================================
-  # 2. CI QUALITY GATE: Automated Unit Tests, Lint, Typecheck, & E2E Tests
+  # 2. CI QUALITY GATE: Automated Unit Tests, Lint, Typecheck, & E2E per Service
   # =========================================================================
 
   # CI: Frontend Unit Tests & Build Verification
@@ -170,29 +169,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # CI: Go Microservices Unit Tests & Vet
-  test-go-services:
-    name: "CI: Go Services (Vet & Unit Tests)"
-    needs: detect-changes
-    if: |
-      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'api-gateway' || inputs.service == 'auth-service' || inputs.service == 'product-service' || inputs.service == 'payment-service') ||
-      needs.detect-changes.outputs.go_any == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go 1.26
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-
-      - name: Run Go Vet & Unit Tests
-        run: |
-          go vet ./packages/shared-go/...
-          go test -v ./packages/shared-go/... ./services/api-gateway/... ./services/auth-service/... ./services/product-service/... ./services/payment-service/...
-
   # CI: NestJS Order Service Unit Tests & Build Check
   test-order-service:
     name: "CI: Order Service (Unit Test & Build)"
@@ -218,6 +194,98 @@ jobs:
 
       - name: Verify Order Service Build
         run: cd services/order-service && bun run build
+
+  # CI: Go API Gateway Unit Tests & Vet
+  test-gateway:
+    name: "CI: API Gateway (Vet & Test)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'api-gateway') ||
+      needs.detect-changes.outputs.gateway == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run API Gateway Vet & Tests
+        run: |
+          go vet ./services/api-gateway/...
+          go test -v ./services/api-gateway/...
+
+  # CI: Go Auth Service Unit Tests & Vet
+  test-auth-service:
+    name: "CI: Auth Service (Vet & Test)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'auth-service') ||
+      needs.detect-changes.outputs.auth == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run Auth Service Vet & Tests
+        run: |
+          go vet ./services/auth-service/...
+          go test -v ./services/auth-service/...
+
+  # CI: Go Product Service Unit Tests & Vet
+  test-product-service:
+    name: "CI: Product Service (Vet & Test)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'product-service') ||
+      needs.detect-changes.outputs.product == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run Product Service Vet & Tests
+        run: |
+          go vet ./services/product-service/...
+          go test -v ./services/product-service/...
+
+  # CI: Go Payment Service Unit Tests & Vet
+  test-payment-service:
+    name: "CI: Payment Service (Vet & Test)"
+    needs: detect-changes
+    if: |
+      github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'payment-service') ||
+      needs.detect-changes.outputs.payment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run Payment Service Vet & Tests
+        run: |
+          go vet ./services/payment-service/...
+          go test -v ./services/payment-service/...
 
   # =========================================================================
   # 3. CD DEPLOYMENT GATE: Build & Push Docker Images ke GHCR
@@ -275,7 +343,7 @@ jobs:
   # Build & Push Go API Gateway
   build-gateway:
     name: "CD: Build & Push API Gateway"
-    needs: [detect-changes, test-go-services]
+    needs: [detect-changes, test-gateway]
     if: |
       github.event_name != 'pull_request' && (
         github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'api-gateway') ||
@@ -323,7 +391,7 @@ jobs:
   # Build & Push Go Auth Service
   build-auth-service:
     name: "CD: Build & Push Auth Service"
-    needs: [detect-changes, test-go-services]
+    needs: [detect-changes, test-auth-service]
     if: |
       github.event_name != 'pull_request' && (
         github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'auth-service') ||
@@ -371,7 +439,7 @@ jobs:
   # Build & Push Go Product Service
   build-product-service:
     name: "CD: Build & Push Product Service"
-    needs: [detect-changes, test-go-services]
+    needs: [detect-changes, test-product-service]
     if: |
       github.event_name != 'pull_request' && (
         github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'product-service') ||
@@ -467,7 +535,7 @@ jobs:
   # Build & Push Go Payment Service
   build-payment-service:
     name: "CD: Build & Push Payment Service"
-    needs: [detect-changes, test-go-services]
+    needs: [detect-changes, test-payment-service]
     if: |
       github.event_name != 'pull_request' && (
         github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'payment-service') ||
