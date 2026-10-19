@@ -18,6 +18,7 @@ Direktori ini (`deploy/vps/`) dirancang secara mandiri (*self-contained*) untuk 
 | **Grafana Loki 3.1** | `grafana/loki:3.1.0` | `3100` | Centralized log ingestion |
 | **Grafana Alloy v1.3** | `grafana/alloy:v1.3.0` | `4317` / `4318` / `12345` | OTel pipeline collector & receiver |
 | **Prometheus v2.54** | `prom/prometheus:v2.54.0` | `9090` | Time-series metric scraper |
+| **Cloudflare Exporter** | `ghcr.io/lablabs/cloudflare-exporter:v0.0.16` | `8085` | Edge analytics, WAF threats, & cache ratio scraper |
 
 Semua container otomatis terhubung ke Docker network bernama **`ecommerce-network`**.
 

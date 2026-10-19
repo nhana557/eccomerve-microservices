@@ -58,6 +58,7 @@ export class TelemetryMiddleware implements NestMiddleware {
       const durationMs = Math.round(durationSec * 1000);
       const statusCode = res.statusCode;
       const fullUrl = req.originalUrl || req.url;
+      const cfRay = (req.headers['cf-ray'] as string) || '';
 
       this.metricsService.recordRequest(
         req.method,
@@ -66,13 +67,16 @@ export class TelemetryMiddleware implements NestMiddleware {
         durationSec,
       );
 
-      const logAttrs = {
+      const logAttrs: Record<string, any> = {
         statusCode,
         method: req.method,
         fullUrl,
         trace_id: traceId,
         span_id: spanId,
       };
+      if (cfRay) {
+        logAttrs.cf_ray = cfRay;
+      }
 
       const outMsg = `Completed: ${req.method} ${fullUrl} - ${statusCode} (${durationMs}ms)`;
 
@@ -100,6 +104,7 @@ export class TelemetryMiddleware implements NestMiddleware {
         statusCode,
         method: req.method,
         fullUrl,
+        cfRay,
       });
     });
 
@@ -115,11 +120,27 @@ export class TelemetryMiddleware implements NestMiddleware {
     statusCode: number;
     method: string;
     fullUrl: string;
+    cfRay?: string;
   }) {
     if (this.alloyUrl === 'none' || this.alloyUrl === 'disabled') return;
 
     const startTimeNano = `${Date.now() - opts.durationMs}000000`;
     const endTimeNano = `${Date.now()}000000`;
+
+    const spanAttributes: any[] = [
+      { key: 'http.method', value: { stringValue: opts.method } },
+      { key: 'method', value: { stringValue: opts.method } },
+      { key: 'fullUrl', value: { stringValue: opts.fullUrl } },
+      { key: 'http.status_code', value: { intValue: opts.statusCode } },
+      { key: 'statusCode', value: { intValue: opts.statusCode } },
+      { key: 'duration_ms', value: { intValue: opts.durationMs } },
+    ];
+    if (opts.cfRay) {
+      spanAttributes.push(
+        { key: 'cloudflare.ray_id', value: { stringValue: opts.cfRay } },
+        { key: 'cf_ray', value: { stringValue: opts.cfRay } },
+      );
+    }
 
     const spanPayload = {
       resourceSpans: [
@@ -141,14 +162,7 @@ export class TelemetryMiddleware implements NestMiddleware {
                   kind: 2, // SPAN_KIND_SERVER
                   startTimeUnixNano: startTimeNano,
                   endTimeUnixNano: endTimeNano,
-                  attributes: [
-                    { key: 'http.method', value: { stringValue: opts.method } },
-                    { key: 'method', value: { stringValue: opts.method } },
-                    { key: 'fullUrl', value: { stringValue: opts.fullUrl } },
-                    { key: 'http.status_code', value: { intValue: opts.statusCode } },
-                    { key: 'statusCode', value: { intValue: opts.statusCode } },
-                    { key: 'duration_ms', value: { intValue: opts.durationMs } },
-                  ],
+                  attributes: spanAttributes,
                   status: {
                     code: opts.statusCode >= 500 ? 2 : 1, // 2: ERROR, 1: OK
                   },

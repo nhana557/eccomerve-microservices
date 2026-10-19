@@ -34,3 +34,11 @@ scrape_configs:
       - targets: ['host.docker.internal:8082']
         labels:
           service: product-service
+
+  - job_name: cloudflare
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    static_configs:
+      - targets: ['cloudflare-exporter:8080', 'host.docker.internal:8085']
+        labels:
+          service: cloudflare-edge

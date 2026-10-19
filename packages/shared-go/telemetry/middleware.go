@@ -111,6 +111,13 @@ func HTTPMiddleware(serviceName string) func(http.Handler) http.Handler {
 			if userRole := r.Header.Get("X-User-Role"); userRole != "" {
 				spanAttrs = append(spanAttrs, attribute.String("user.role", userRole))
 			}
+			cfRay := strings.TrimSpace(r.Header.Get("CF-Ray"))
+			if cfRay != "" {
+				spanAttrs = append(spanAttrs,
+					attribute.String("cloudflare.ray_id", cfRay),
+					attribute.String("cf_ray", cfRay),
+				)
+			}
 			if rawQuery != "" {
 				spanAttrs = append(spanAttrs,
 					attribute.String("url.query", rawQuery),
@@ -124,11 +131,15 @@ func HTTPMiddleware(serviceName string) func(http.Handler) http.Handler {
 			)
 			defer span.End()
 
-			// Log saat request masuk (ringkas: method dan fullUrl)
-			log.InfoContext(ctx, fmt.Sprintf("Incoming: %s %s", r.Method, fullURI),
+			// Log saat request masuk (ringkas: method, fullUrl, dan cf_ray jika ada)
+			incomingAttrs := []any{
 				"method", r.Method,
 				"fullUrl", fullURI,
-			)
+			}
+			if cfRay != "" {
+				incomingAttrs = append(incomingAttrs, "cf_ray", cfRay)
+			}
+			log.InfoContext(ctx, fmt.Sprintf("Incoming: %s %s", r.Method, fullURI), incomingAttrs...)
 
 			rec := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
 			next.ServeHTTP(rec, r.WithContext(ctx))
@@ -148,24 +159,34 @@ func HTTPMiddleware(serviceName string) func(http.Handler) http.Handler {
 				attribute.Int64("duration_ms", duration.Milliseconds()),
 				attribute.Int64("http.duration_ms", duration.Milliseconds()),
 			}
+			if cfRay != "" {
+				spanAttrsToSet = append(spanAttrsToSet, attribute.String("cloudflare.ray_id", cfRay))
+			}
 			if rawQuery != "" {
 				spanAttrsToSet = append(spanAttrsToSet, attribute.String("query", rawQuery))
 			}
 			span.SetAttributes(spanAttrsToSet...)
 
-			span.AddEvent("http.request.completed", trace.WithAttributes(
+			eventAttrs := []attribute.KeyValue{
 				attribute.String("message", outMsg),
 				attribute.Int("statusCode", rec.statusCode),
 				attribute.Int64("duration_ms", duration.Milliseconds()),
 				attribute.String("fullUrl", fullURI),
 				attribute.String("client.location", clientLocation),
-			))
+			}
+			if cfRay != "" {
+				eventAttrs = append(eventAttrs, attribute.String("cf_ray", cfRay))
+			}
+			span.AddEvent("http.request.completed", trace.WithAttributes(eventAttrs...))
 
-			// Log di Loki dibuat ringkas sesuai permintaan user: statusCode, method, fullUrl
+			// Log di Loki dibuat ringkas sesuai permintaan user: statusCode, method, fullUrl, cf_ray
 			outAttrs := []any{
 				"statusCode", rec.statusCode,
 				"method", r.Method,
 				"fullUrl", fullURI,
+			}
+			if cfRay != "" {
+				outAttrs = append(outAttrs, "cf_ray", cfRay)
 			}
 
 			// Deteksi slow API response: > 5s warning (kuning/WARN), > 8s critical (merah/ERROR)

@@ -26,6 +26,6 @@ echo -e "\n${YELLOW}Penggunaan Resource Memory & CPU (Live Snapshot):${NC}"
 docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}" \
     ecommerce-postgres ecommerce-pgbouncer ecommerce-redis ecommerce-rabbitmq \
     ecommerce-elasticsearch ecommerce-jaeger ecommerce-loki ecommerce-alloy \
-    ecommerce-prometheus ecommerce-grafana 2>/dev/null || true
+    ecommerce-prometheus ecommerce-grafana ecommerce-cloudflare-exporter 2>/dev/null || true
 
 echo ""

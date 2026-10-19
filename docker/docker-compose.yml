@@ -162,6 +162,18 @@ services:
       - jaeger
       - loki
 
+  cloudflare-exporter:
+    image: ghcr.io/lablabs/cloudflare-exporter:v0.0.16
+    container_name: ecommerce-cloudflare-exporter
+    restart: unless-stopped
+    environment:
+      - CF_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - CF_ZONES=${CLOUDFLARE_ZONE_ID:-}
+      - FREE_TIER=${CLOUDFLARE_FREE_TIER:-true}
+      - LISTEN=:8080
+    ports:
+      - '${CLOUDFLARE_EXPORTER_PORT:-8085}:8080'
+
 volumes:
   postgres_data:
   redis_data:

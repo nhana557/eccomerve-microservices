@@ -34,3 +34,11 @@ scrape_configs:
       - targets: ['payment-service:8084', 'host.docker.internal:8084']
         labels:
           service: payment-service
+
+  - job_name: cloudflare
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    static_configs:
+      - targets: ['cloudflare-exporter:8080', 'host.docker.internal:8085']
+        labels:
+          service: cloudflare-edge
