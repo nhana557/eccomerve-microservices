@@ -32,7 +32,15 @@ export function setAuthTokenGetter(getter: () => Promise<string | null>) {
 export async function getAuthToken(): Promise<string | null> {
   if (authTokenGetter) {
     try {
-      return await authTokenGetter();
+      const token = await authTokenGetter();
+      if (token) return token;
+    } catch {
+      // Ignore getter errors and try fallback
+    }
+  }
+  if (typeof window !== "undefined") {
+    try {
+      return localStorage.getItem("tstore_auth_token");
     } catch {
       return null;
     }
@@ -218,6 +226,7 @@ export async function apiRequestWithMeta<T>(
       ...options,
       headers: reqHeaders,
       cache: "no-store",
+      credentials: options?.credentials || "include",
       signal: abortSignal,
     });
 

@@ -10,7 +10,7 @@ import {
   Mail,
   Grid,
 } from "lucide-react";
-import { apiMetrics, CacheTierLabel } from "@/lib/api-client";
+import { apiMetrics, CacheTierLabel, getGatewayUrl } from "@/lib/api-client";
 import { useCategories } from "@/features/categories/hooks/use-categories";
 import { CategoryMegaMenu } from "@/features/categories/layouts/CategoryMegaMenu";
 import { useAuth } from "@/features/auth/context/AuthContext";
@@ -74,7 +74,10 @@ export function Navbar({
   // Ping Gateway Health & Subscribe to API metrics
   useEffect(() => {
     const start = performance.now();
-    fetch("http://localhost:8080/api/v1/health")
+    const gateway = getGatewayUrl();
+    const healthUrl = gateway ? `${gateway}/api/v1/health` : "/api/health";
+
+    fetch(healthUrl)
       .then((res) => {
         const ms = Math.round(performance.now() - start);
         setApiResponseTime(ms);
@@ -82,7 +85,12 @@ export function Navbar({
         setApiCacheTier(null);
         setGatewayUp(res.ok);
       })
-      .catch(() => setGatewayUp(false));
+      .catch(() => {
+        // Fallback to local /api/health route
+        fetch("/api/health")
+          .then((res) => setGatewayUp(res.ok))
+          .catch(() => setGatewayUp(false));
+      });
 
     const unsubscribe = apiMetrics.subscribe((_endpoint, ms, isCache, tier) => {
       setApiResponseTime(ms);

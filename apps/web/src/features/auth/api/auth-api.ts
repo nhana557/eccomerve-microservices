@@ -1,4 +1,5 @@
 import { User, AuthResponse } from "../types";
+import { getGatewayUrl, getAuthToken } from "@/lib/api-client";
 
 export function formatUserDisplayName(name: string): string {
   if (!name || !name.trim()) return "Pengguna";
@@ -26,51 +27,99 @@ export function validateAuthForm(
   return { isValid: true, error: null };
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+async function fetchAuthWithFallback(endpoint: string, options: RequestInit): Promise<Response> {
+  const gateway = getGatewayUrl();
+  const token = await getAuthToken();
+  const reqHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((options.headers as Record<string, string>) || {}),
+  };
+  if (token && !reqHeaders["Authorization"]) {
+    reqHeaders["Authorization"] = `Bearer ${token}`;
+  }
+
+  const fullUrl = gateway ? `${gateway}${endpoint}` : endpoint;
+  try {
+    const res = await fetch(fullUrl, {
+      ...options,
+      headers: reqHeaders,
+      credentials: "include",
+    });
+    return res;
+  } catch (err) {
+    // If direct gateway URL fails (e.g. CORS, DNS, or network error), fallback to same-origin relative URL
+    if (gateway && typeof window !== "undefined") {
+      try {
+        const fallbackRes = await fetch(endpoint, {
+          ...options,
+          headers: reqHeaders,
+          credentials: "include",
+        });
+        return fallbackRes;
+      } catch {
+        throw err;
+      }
+    }
+    throw err;
+  }
+}
 
 export const authApi = {
   async register(name: string, email: string, password: string): Promise<User> {
-    const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+    const res = await fetchAuthWithFallback("/api/v1/auth/register", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, password }),
-      credentials: "include",
     });
 
-    const json: AuthResponse = await res.json();
+    const json = await res.json();
     if (!res.ok || !json.data?.user) {
       throw new Error(json.error?.message || "Gagal melakukan pendaftaran akun");
+    }
+    if (json.data.token && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tstore_auth_token", json.data.token);
+      } catch {}
     }
     return json.data.user;
   },
 
   async login(email: string, password: string): Promise<User> {
-    const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+    const res = await fetchAuthWithFallback("/api/v1/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
-      credentials: "include",
     });
 
-    const json: AuthResponse = await res.json();
+    const json = await res.json();
     if (!res.ok || !json.data?.user) {
       throw new Error(json.error?.message || "Email atau kata sandi tidak cocok");
+    }
+    if (json.data.token && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tstore_auth_token", json.data.token);
+      } catch {}
     }
     return json.data.user;
   },
 
   async logout(): Promise<void> {
-    await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("tstore_auth_token");
+      } catch {}
+    }
+    try {
+      await fetchAuthWithFallback("/api/v1/auth/logout", {
+        method: "POST",
+      });
+    } catch {
+      // Ignore network errors on logout
+    }
   },
 
   async getMe(): Promise<User | null> {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+      const res = await fetchAuthWithFallback("/api/v1/auth/me", {
         method: "GET",
-        credentials: "include",
       });
       if (!res.ok) return null;
       const json: AuthResponse = await res.json();

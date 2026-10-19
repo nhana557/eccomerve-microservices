@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import { Product } from "../../products/types";
 import { CartItem } from "../types";
 import { useToast } from "@/components/feedback/ToastContext";
+import { apiRequest } from "@/lib/api-client";
 
 export function calculateCartTotals(items: CartItem[]): { totalPrice: number; totalItems: number } {
   return items.reduce(
@@ -44,8 +45,6 @@ interface CartContextValue {
 }
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -102,23 +101,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: "Kode promo tidak boleh kosong" };
       }
       try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/promos/validate`, {
+        const promoData = await apiRequest<{
+          is_valid: boolean;
+          promo?: { code: string; title: string };
+          discount_amount?: number;
+        }>("/api/v1/promos/validate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             code: code.trim().toUpperCase(),
             subtotal: totalPrice,
           }),
-          credentials: "include",
         });
-        const json = await res.json();
-        if (!res.ok || !json.data?.is_valid) {
-          const errMsg = json.error?.message || "Kupon promo tidak dapat digunakan untuk pesanan ini";
+
+        if (!promoData?.is_valid) {
+          const errMsg = "Kupon promo tidak dapat digunakan untuk pesanan ini";
           showToast("error", "Voucher Gagal", errMsg);
           return { success: false, message: errMsg };
         }
 
-        const promoData = json.data;
         const newPromo: AppliedPromo = {
           code: promoData.promo?.code || code.trim().toUpperCase(),
           title: promoData.promo?.title || "Diskon Spesial",
