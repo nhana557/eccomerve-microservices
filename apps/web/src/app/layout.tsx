@@ -6,9 +6,84 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { isClerkEnabled } from "@/lib/clerk-config";
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_APP_URL || "https://ecommerce.taryana.my.id";
+
 export const metadata: Metadata = {
-  title: "T.STORE - Official E-Commerce Store",
-  description: "Next.js 15 BFF + Go Microservices Monorepo",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "T.STORE - Platform Belanja Online Gadget & Elektronik Terpercaya",
+    template: "%s | T.STORE",
+  },
+  description:
+    "Pusat belanja online terpercaya untuk produk gadget, laptop, smartphone, dan aksesoris original. Nikmati promo diskon spesial, bebas ongkir, dan jaminan garansi resmi se-Indonesia.",
+  applicationName: "T.STORE",
+  authors: [{ name: "T.STORE Official", url: siteUrl }],
+  generator: "Next.js 15",
+  keywords: [
+    "T.STORE",
+    "tstore",
+    "belanja online",
+    "ecommerce indonesia",
+    "toko elektronik online",
+    "gadget original",
+    "laptop murah",
+    "smartphone garansi resmi",
+    "aksesoris komputer",
+    "promo diskon",
+    "bebas ongkir",
+    "shopee",
+    "tokopedia",
+    "elektronik terlengkap",
+  ],
+  referrer: "origin-when-cross-origin",
+  creator: "T.STORE",
+  publisher: "T.STORE",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: siteUrl,
+    siteName: "T.STORE",
+    title: "T.STORE - Platform Belanja Online Gadget & Elektronik Terpercaya",
+    description:
+      "Pusat belanja online terpercaya untuk produk gadget, laptop, smartphone, dan aksesoris original. Nikmati promo diskon spesial, bebas ongkir, dan jaminan garansi resmi se-Indonesia.",
+    images: [
+      {
+        url: "/images/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "T.STORE - Official E-Commerce Store",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "T.STORE - Platform Belanja Online Gadget & Elektronik Terpercaya",
+    description:
+      "Pusat belanja online terpercaya untuk produk gadget, laptop, smartphone, dan aksesoris original. Promo bebas ongkir & garansi resmi.",
+    images: ["/images/og-image.png"],
+    creator: "@tstore",
+    site: "@tstore",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -17,6 +92,7 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/apple-icon.png",
   },
+  category: "ecommerce",
 };
 
 export default function RootLayout({

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <!-- Background Squircle Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0E1726" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+
+    <!-- Outer Cyan Border Gradient -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#0369A1" />
+    </linearGradient>
+
+    <!-- Typography Electric Cyan Gradient -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7DD3FC" />
+      <stop offset="45%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+
+    <!-- Neon Dot Gradient -->
+    <linearGradient id="dotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Outer Cyan Glow Filter -->
+    <filter id="outerGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Dot Green Glow Filter -->
+    <filter id="dotGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Outer Glow Shadow -->
+  <rect x="20" y="20" width="216" height="216" rx="52" fill="#0EA5E9" opacity="0.4" filter="url(#outerGlow)" />
+
+  <!-- Main Squircle Card -->
+  <rect x="20" y="20" width="216" height="216" rx="48" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="4.5" />
+
+  <!-- Subtle Inner Specular Rim -->
+  <rect x="24" y="24" width="208" height="208" rx="44" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1.5" />
+
+  <!-- Center Initials 'T.S' styled ala Image #10 -->
+  <g transform="translate(128, 138)" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Ubuntu', sans-serif">
+    <!-- T Letter -->
+    <text x="-44" y="22" font-size="112" font-weight="900" fill="url(#textGrad)" letter-spacing="-1">T</text>
+
+    <!-- S Letter -->
+    <text x="44" y="22" font-size="112" font-weight="900" fill="url(#textGrad)" letter-spacing="-1">S</text>
+
+    <!-- Glowing Neon Green Dot between T and S -->
+    <circle cx="2" cy="16" r="14" fill="#10B981" opacity="0.65" filter="url(#dotGlow)" />
+    <circle cx="2" cy="16" r="8.5" fill="url(#dotGrad)" />
+    <circle cx="2" cy="16" r="3.5" fill="#FFFFFF" />
+  </g>
+</svg>

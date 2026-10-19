@@ -242,6 +242,7 @@ services:
       - PORT=3000
       - INTERNAL_GATEWAY_URL=http://api-gateway:8080
       - NEXT_PUBLIC_GATEWAY_URL=${PUBLIC_GATEWAY_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_API_URL=${PUBLIC_GATEWAY_URL:-http://localhost:8080}
       - LOKI_URL=${LOKI_URL:-http://loki:3100}
       - ALLOY_URL=${ALLOY_URL:-http://alloy:4318}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://alloy:4318}
