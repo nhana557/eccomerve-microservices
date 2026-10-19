@@ -150,7 +150,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{app=\"nusasite\"} | json | http_path != \"/metrics\" | drop __error__, __error_details__ | line_format \"[{{.level}}] [{{.service}}] {{.http_method}} {{.http_path}} | {{.msg}} \\\"trace_id\\\":\\\"{{.trace_id}}\\\"\" |~ \"(?i)$search\"",
+          "expr": "{service_name=~\".+\"} | json | drop __error__, __error_details__ | line_format \"[{{.level}}] [{{.service_name}}] {{.method}} {{.fullUrl}} | {{.msg}} \\\"trace_id\\\":\\\"{{.trace_id}}\\\"\" |~ \"(?i)$search\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -161,7 +161,7 @@
   ],
   "refresh": "5s",
   "schemaVersion": 39,
-  "tags": ["performance", "backend", "logs", "traces", "nusasite", "jaeger", "loki"],
+  "tags": ["performance", "backend", "logs", "traces", "tstore", "jaeger", "loki"],
   "templating": {
     "list": [
       {
@@ -198,6 +198,6 @@
     ]
   },
   "timezone": "browser",
-  "title": "NusaSite Application Performance & Logs",
+  "title": "T.STORE Application Performance & Logs",
   "uid": "app-performance"
 }
