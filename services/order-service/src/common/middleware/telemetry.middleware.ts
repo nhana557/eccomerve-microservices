@@ -59,6 +59,15 @@ export class TelemetryMiddleware implements NestMiddleware {
       const statusCode = res.statusCode;
       const fullUrl = req.originalUrl || req.url;
       const cfRay = (req.headers['cf-ray'] as string) || '';
+      const clientIp =
+        (req.headers['cf-connecting-ip'] as string) ||
+        (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+        req.ip ||
+        '127.0.0.1';
+      const clientLocation =
+        (req.headers['cf-ipcountry'] as string) ||
+        (req.headers['x-client-location'] as string) ||
+        'Indonesia';
 
       this.metricsService.recordRequest(
         req.method,
@@ -71,6 +80,8 @@ export class TelemetryMiddleware implements NestMiddleware {
         statusCode,
         method: req.method,
         fullUrl,
+        client_ip: clientIp,
+        client_location: clientLocation,
         trace_id: traceId,
         span_id: spanId,
       };

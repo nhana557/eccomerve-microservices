@@ -321,7 +321,219 @@
         "x": 0,
         "y": 5
       },
-      "id": 8,
+      "id": 10,
+      "title": "Cloudflare Requests & Visitor Breakdown (Top Analytics)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 11,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sortBy": [
+          {
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "round(topk(10, sum by(path) (increase(http_requests_total{path!~\"/metrics|/health|/api/v1/health\"}[]))))",
+          "legendFormat": "{{path}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top paths",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 12,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sortBy": [
+          {
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "topk(10, sum by(country) (cloudflare_zone_requests_total{country!=\"\"}) or vector(0))",
+          "legendFormat": "{{country}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top countries",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 13,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sortBy": [
+          {
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "topk(10, sum by(client_ip) (count_over_time({service_name=~\".+\"} | json | client_ip != \"\" [])))",
+          "legendFormat": "{{client_ip}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top client IPs",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 14,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sortBy": [
+          {
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "round(topk(10, sum by(service) (increase(http_requests_total[]))))",
+          "legendFormat": "{{service}}.taryana.my.id",
+          "refId": "A"
+        }
+      ],
+      "title": "Top hosts",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 20,
       "title": "Traffic, Visitors & Performance Timeline",
       "type": "row"
     },
@@ -343,9 +555,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 6
+        "y": 23
       },
-      "id": 9,
+      "id": 21,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -385,9 +597,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 6
+        "y": 23
       },
-      "id": 10,
+      "id": 22,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -427,9 +639,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 6
+        "y": 23
       },
-      "id": 11,
+      "id": 23,
       "options": {
         "legend": {
           "displayMode": "list",

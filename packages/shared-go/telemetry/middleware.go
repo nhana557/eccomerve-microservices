@@ -131,10 +131,12 @@ func HTTPMiddleware(serviceName string) func(http.Handler) http.Handler {
 			)
 			defer span.End()
 
-			// Log saat request masuk (ringkas: method, fullUrl, dan cf_ray jika ada)
+			// Log saat request masuk (ringkas: method, fullUrl, client_ip, client_location, cf_ray jika ada)
 			incomingAttrs := []any{
 				"method", r.Method,
 				"fullUrl", fullURI,
+				"client_ip", clientIP,
+				"client_location", clientLocation,
 			}
 			if cfRay != "" {
 				incomingAttrs = append(incomingAttrs, "cf_ray", cfRay)
@@ -179,11 +181,13 @@ func HTTPMiddleware(serviceName string) func(http.Handler) http.Handler {
 			}
 			span.AddEvent("http.request.completed", trace.WithAttributes(eventAttrs...))
 
-			// Log di Loki dibuat ringkas sesuai permintaan user: statusCode, method, fullUrl, cf_ray
+			// Log di Loki dibuat ringkas sesuai permintaan user: statusCode, method, fullUrl, client_ip, client_location, cf_ray
 			outAttrs := []any{
 				"statusCode", rec.statusCode,
 				"method", r.Method,
 				"fullUrl", fullURI,
+				"client_ip", clientIP,
+				"client_location", clientLocation,
 			}
 			if cfRay != "" {
 				outAttrs = append(outAttrs, "cf_ray", cfRay)
