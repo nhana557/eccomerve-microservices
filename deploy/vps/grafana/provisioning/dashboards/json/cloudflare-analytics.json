@@ -61,7 +61,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(cloudflare_zone_requests_total) or vector(0)",
+          "expr": "sum(cloudflare_zone_requests_total) or sum(http_requests_total) or vector(0)",
           "instant": true,
           "refId": "A"
         }
@@ -321,8 +321,380 @@
         "x": 0,
         "y": 5
       },
+      "id": 100,
+      "title": "Requests & Data Transfer Timelines (Image #12)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity"
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 101,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "sum(rate(cloudflare_zone_requests_total[5m])) or sum(rate(http_requests_total[5m]))",
+          "legendFormat": "Requests",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity"
+          },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 102,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "sum(rate(cloudflare_zone_bandwidth_total[5m])) or vector(0)",
+          "legendFormat": "Data transfer",
+          "refId": "A"
+        }
+      ],
+      "title": "Data transfer",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "semi-dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 103,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=~\"2.*\"}[5m])) or sum(increase(http_requests_total{status=~\"2.*\"}[5m])))",
+          "legendFormat": "2xx",
+          "refId": "A"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=~\"3.*\"}[5m])) or sum(increase(http_requests_total{status=~\"3.*\"}[5m])))",
+          "legendFormat": "3xx",
+          "refId": "B"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=~\"4.*\"}[5m])) or sum(increase(http_requests_total{status=~\"4.*\"}[5m])))",
+          "legendFormat": "4xx",
+          "refId": "C"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=~\"5.*\"}[5m])) or sum(increase(http_requests_total{status=~\"5.*\"}[5m])))",
+          "legendFormat": "5xx",
+          "refId": "D"
+        }
+      ],
+      "title": "Requests by status code",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dynamic"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "None"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "teal"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Miss"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hit"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bypass"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 104,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total[5m])) - sum(increase(cloudflare_zone_requests_cached[5m])) or sum(increase(http_requests_total[5m])))",
+          "legendFormat": "Dynamic",
+          "refId": "A"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=~\"404|403\"}[5m])) or vector(0))",
+          "legendFormat": "None",
+          "refId": "B"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=\"304\"}[5m])) or vector(0))",
+          "legendFormat": "Miss",
+          "refId": "C"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_cached[5m])) or vector(0))",
+          "legendFormat": "Hit",
+          "refId": "D"
+        },
+        {
+          "expr": "round(sum(increase(cloudflare_zone_requests_total{status=~\"401|400\"}[5m])) or vector(0))",
+          "legendFormat": "Bypass",
+          "refId": "E"
+        }
+      ],
+      "title": "Requests by cache status",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
       "id": 10,
-      "title": "Cloudflare Requests & Visitor Breakdown (Top Analytics)",
+      "title": "Cloudflare Requests & Visitor Breakdown (Image #11)",
       "type": "row"
     },
     {
@@ -345,7 +717,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 23
       },
       "id": 11,
       "options": {
@@ -395,7 +767,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 23
       },
       "id": 12,
       "options": {
@@ -445,7 +817,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 31
       },
       "id": 13,
       "options": {
@@ -495,7 +867,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 31
       },
       "id": 14,
       "options": {
@@ -531,10 +903,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 39
       },
-      "id": 20,
-      "title": "Traffic, Visitors & Performance Timeline",
+      "id": 200,
+      "title": "Pageviews & Unique Visitors Trends (Image #10)",
       "type": "row"
     },
     {
@@ -546,60 +918,19 @@
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth"
-          },
-          "unit": "reqps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 23
-      },
-      "id": 21,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(cloudflare_zone_requests_total[5m])) by (status)",
-          "legendFormat": "Status {{status}}",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(rate(cloudflare_zone_requests_cached[5m]))",
-          "legendFormat": "Cached Requests",
-          "refId": "B"
-        }
-      ],
-      "title": "Requests per Second by Status",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2
           },
           "unit": "short"
         }
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 23
+        "w": 24,
+        "x": 0,
+        "y": 40
       },
-      "id": 22,
+      "id": 201,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -618,49 +949,7 @@
           "refId": "B"
         }
       ],
-      "title": "Pageviews & Visitors Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth"
-          },
-          "unit": "Bps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 23
-      },
-      "id": 23,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(cloudflare_zone_bandwidth_total[5m]))",
-          "legendFormat": "Total Bandwidth",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(rate(cloudflare_zone_bandwidth_cached[5m]))",
-          "legendFormat": "Saved by Cache",
-          "refId": "B"
-        }
-      ],
-      "title": "Bandwidth & Cache Savings",
+      "title": "Pageviews & Visitors Timeline",
       "type": "timeseries"
     }
   ],
@@ -670,7 +959,8 @@
     "cloudflare",
     "edge",
     "security",
-    "visitors"
+    "visitors",
+    "traffic"
   ],
   "time": {
     "from": "now-6h",
