@@ -163,7 +163,7 @@ services:
       - loki
 
   cloudflare-exporter:
-    image: ghcr.io/lablabs/cloudflare-exporter:v0.0.16
+    image: lablabs/cloudflare_exporter:latest
     container_name: ecommerce-cloudflare-exporter
     restart: unless-stopped
     environment:
