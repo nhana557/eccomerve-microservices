@@ -322,7 +322,7 @@
         "y": 5
       },
       "id": 100,
-      "title": "Requests & Data Transfer Timelines (Image #12)",
+      "title": "Requests & Data Transfer Timelines",
       "type": "row"
     },
     {
@@ -694,7 +694,7 @@
         "y": 22
       },
       "id": 10,
-      "title": "Cloudflare Requests & Visitor Breakdown (Image #11)",
+      "title": "Requests & Visitor Breakdown",
       "type": "row"
     },
     {
@@ -739,7 +739,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "round(topk(10, sum by(path) (increase(http_requests_total{path!~\"/metrics|/health|/api/v1/health\"}[]))))",
+          "expr": "round(topk(10, sum by(path) (increase(http_requests_total{path!~\"/metrics|/health|/api/v1/health\"}[$__range]))))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -789,7 +789,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "topk(10, sum by(country) (cloudflare_zone_requests_total{country!=\"\"}) or vector(0))",
+          "expr": "topk(10, sum by(country) (cloudflare_zone_requests_country or cloudflare_zone_requests_total{country!=\"\"}))",
           "legendFormat": "{{country}}",
           "refId": "A"
         }
@@ -839,7 +839,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "topk(10, sum by(client_ip) (count_over_time({service_name=~\".+\"} | json | client_ip != \"\" [])))",
+          "expr": "topk(10, sum by(client_ip) (count_over_time({service_name=~\".+\"} | json | client_ip != \"\" [$__range])))",
           "legendFormat": "{{client_ip}}",
           "refId": "A"
         }
@@ -889,7 +889,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "round(topk(10, sum by(service) (increase(http_requests_total[]))))",
+          "expr": "round(topk(10, sum by(service) (increase(http_requests_total[$__range]))))",
           "legendFormat": "{{service}}.taryana.my.id",
           "refId": "A"
         }
@@ -906,7 +906,7 @@
         "y": 39
       },
       "id": 200,
-      "title": "Pageviews & Unique Visitors Trends (Image #10)",
+      "title": "Pageviews & Unique Visitors Trends",
       "type": "row"
     },
     {
