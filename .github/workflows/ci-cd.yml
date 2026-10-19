@@ -43,6 +43,10 @@ on:
           - order-service
           - payment-service
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/production' }}
+
 permissions:
   contents: read
   packages: write
@@ -57,6 +61,7 @@ jobs:
   detect-changes:
     name: Detect Changed Services
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       workflow: ${{ steps.filter.outputs.workflow }}
       web: ${{ steps.filter.outputs.web }}
@@ -115,6 +120,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'web') ||
       needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -123,6 +129,14 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
 
       - name: Install dependencies
         run: bun install
@@ -141,6 +155,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'web') ||
       needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -150,11 +165,33 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
         run: bun install
 
-      - name: Install Chromium browser for @e2e-dev/web
+      - name: Cache Playwright Chromium binaries
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Chromium browser for @e2e-dev/web (on cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: cd apps/web && bunx @e2e-dev/web install chromium --with-deps
+
+      - name: Install Chromium OS system dependencies (on cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: cd apps/web && bunx playwright install-deps chromium
 
       - name: Run E2E Test Suite
         run: cd apps/web && bun run test:e2e --reporter list,junit
@@ -182,6 +219,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'order-service') ||
       needs.detect-changes.outputs.order == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -190,6 +228,14 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('services/order-service/bun.lock*', 'bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
 
       - name: Install dependencies
         run: cd services/order-service && bun install
@@ -208,6 +254,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'api-gateway') ||
       needs.detect-changes.outputs.gateway == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -217,6 +264,10 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+          cache-dependency-path: |
+            go.work.sum
+            services/**/go.sum
+            packages/**/go.sum
 
       - name: Run API Gateway Vet & Tests
         run: |
@@ -231,6 +282,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'auth-service') ||
       needs.detect-changes.outputs.auth == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -240,6 +292,10 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+          cache-dependency-path: |
+            go.work.sum
+            services/**/go.sum
+            packages/**/go.sum
 
       - name: Run Auth Service Vet & Tests
         run: |
@@ -254,6 +310,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'product-service') ||
       needs.detect-changes.outputs.product == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -263,6 +320,10 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+          cache-dependency-path: |
+            go.work.sum
+            services/**/go.sum
+            packages/**/go.sum
 
       - name: Run Product Service Vet & Tests
         run: |
@@ -277,6 +338,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && (inputs.service == 'all' || inputs.service == 'payment-service') ||
       needs.detect-changes.outputs.payment == 'true' || needs.detect-changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -286,6 +348,10 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+          cache-dependency-path: |
+            go.work.sum
+            services/**/go.sum
+            packages/**/go.sum
 
       - name: Run Payment Service Vet & Tests
         run: |
@@ -307,6 +373,7 @@ jobs:
         needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.workflow == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -342,8 +409,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
 
   # Build & Push Go API Gateway
   build-gateway:
@@ -355,6 +422,7 @@ jobs:
         needs.detect-changes.outputs.gateway == 'true' || needs.detect-changes.outputs.workflow == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -390,8 +458,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api-gateway
+          cache-to: type=gha,mode=max,scope=api-gateway
 
   # Build & Push Go Auth Service
   build-auth-service:
@@ -403,6 +471,7 @@ jobs:
         needs.detect-changes.outputs.auth == 'true' || needs.detect-changes.outputs.workflow == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -438,8 +507,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=auth-service
+          cache-to: type=gha,mode=max,scope=auth-service
 
   # Build & Push Go Product Service
   build-product-service:
@@ -451,6 +520,7 @@ jobs:
         needs.detect-changes.outputs.product == 'true' || needs.detect-changes.outputs.workflow == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -486,8 +556,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=product-service
+          cache-to: type=gha,mode=max,scope=product-service
 
   # Build & Push NestJS Order Service
   build-order-service:
@@ -499,6 +569,7 @@ jobs:
         needs.detect-changes.outputs.order == 'true' || needs.detect-changes.outputs.workflow == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -534,8 +605,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=order-service
+          cache-to: type=gha,mode=max,scope=order-service
 
   # Build & Push Go Payment Service
   build-payment-service:
@@ -547,6 +618,7 @@ jobs:
         needs.detect-changes.outputs.payment == 'true' || needs.detect-changes.outputs.workflow == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -582,5 +654,38 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=payment-service
+          cache-to: type=gha,mode=max,scope=payment-service
+
+  # =========================================================================
+  # 4. CI/CD SUMMARY: Render execution dashboard in GitHub Actions Summary
+  # =========================================================================
+  ci-summary:
+    name: "Pipeline Summary"
+    if: always()
+    needs:
+      - detect-changes
+      - test-web
+      - test-e2e
+      - test-order-service
+      - test-gateway
+      - test-auth-service
+      - test-product-service
+      - test-payment-service
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Generate Pipeline Status Summary
+        run: |
+          echo "## 📊 CI/CD Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Phase / Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Detect Changes | ${{ needs.detect-changes.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Web Unit Test & Build | ${{ needs.test-web.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎭 Web E2E (Playwright) | ${{ needs.test-e2e.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Order Service (NestJS) | ${{ needs.test-order-service.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚪 API Gateway (Go) | ${{ needs.test-gateway.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔐 Auth Service (Go) | ${{ needs.test-auth-service.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🛍️ Product Service (Go) | ${{ needs.test-product-service.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 💳 Payment Service (Go) | ${{ needs.test-payment-service.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
