@@ -153,8 +153,22 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Install Chromium browser for @e2e-dev/web
+      - name: Cache Playwright Chromium binaries
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Chromium browser for @e2e-dev/web (on cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: cd apps/web && bunx @e2e-dev/web install chromium --with-deps
+
+      - name: Install Chromium OS system dependencies (on cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: cd apps/web && bunx playwright install-deps chromium
 
       - name: Run E2E Test Suite
         run: cd apps/web && bun run test:e2e --reporter list,junit
