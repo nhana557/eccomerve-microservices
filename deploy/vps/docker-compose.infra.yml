@@ -225,12 +225,10 @@ services:
     image: lablabs/cloudflare_exporter:latest
     container_name: ecommerce-cloudflare-exporter
     restart: unless-stopped
-    env_file:
-      - .env.infra
     environment:
-      - CF_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
-      - CF_ZONES=${CLOUDFLARE_ZONE_ID:-}
-      - FREE_TIER=${CLOUDFLARE_FREE_TIER:-true}
+      - CF_API_TOKEN=${CF_API_TOKEN:-${CLOUDFLARE_API_TOKEN:-}}
+      - CF_ZONES=${CF_ZONES:-${CLOUDFLARE_ZONE_ID:-}}
+      - FREE_TIER=${FREE_TIER:-${CLOUDFLARE_FREE_TIER:-true}}
       - LISTEN=:8080
     ports:
       - '${CLOUDFLARE_EXPORTER_PORT:-8085}:8080'
